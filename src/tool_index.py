@@ -645,7 +645,20 @@ def get_tool_index() -> Optional[ToolIndex]:
         _tool_index.index_builtin_tools()
         return _tool_index
     except Exception as e:
-        logger.warning(f"ToolIndex init failed (will retry in {_RETRY_INTERVAL}s): {e}")
+        # ERROR, not warning, and it spells out the consequence. When this fails the agent
+        # is not merely "missing search" — RAG retrieval returns nothing, so every turn
+        # falls back to ALWAYS_AVAILABLE = {manage_memory, ask_user, update_plan}. None of
+        # those can read a file or run a command, so the agent narrates a plan instead of
+        # doing the work and looks like a model too weak to call tools. That misdiagnosis
+        # cost a full working session before the real cause (ChromaDB down) was found.
+        logger.error(
+            "ToolIndex init FAILED (%s). Agent tool retrieval is DISABLED: every turn will "
+            "fall back to %s only, so file/shell tools will NOT be offered and agents will "
+            "appear unable to act. Start ChromaDB (docker compose up chromadb, or "
+            "`chroma run --host 127.0.0.1 --port 8100 --path data/chroma`) or set "
+            "CHROMADB_HOST/CHROMADB_PORT. Retrying in %ss.",
+            e, sorted(ALWAYS_AVAILABLE), _RETRY_INTERVAL,
+        )
         _tool_index = None
         return None
 
