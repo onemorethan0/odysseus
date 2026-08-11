@@ -65,6 +65,13 @@ _PASSIVE_EXACT_PATHS = {
     "/api/tasks/notifications",
     "/api/research/active",
     "/api/email/urgency-state",
+    # Sibling poll of urgency-state above, and it was missed. The UI polls it on a timer,
+    # so an open Odysseus tab counted as continuous foreground activity and
+    # stop_background_tasks_for_foreground killed every background agent run within
+    # seconds — recorded as "Stopped by user" when no user did anything. Observed
+    # 2026-08-10: a MythForge build-worker run aborted at 69s to
+    # "foreground request GET /api/email/unread-state".
+    "/api/email/unread-state",
 }
 
 _PASSIVE_PREFIXES = (
