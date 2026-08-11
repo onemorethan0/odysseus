@@ -343,6 +343,16 @@ class ToolIndex:
         r"https?://|www\.|\b(?:visit|open|fetch|check|read)\s+(?:this\s+)?(?:url|link|site|website|page)\b",
         re.I,
     )
+    # A concrete file path or source filename is the strongest signal of code work, and it
+    # carries none of the _KEYWORD_HINTS words: "edit frontend/src/App.jsx to add a button"
+    # matched nothing and arrived with only edit_file. Structural, like the two above, so it
+    # fires on the path itself rather than on vocabulary the user may not use. The extension
+    # list is deliberately source-only — a .pdf or .png attachment is not a coding request.
+    _CODE_PATH_RE = re.compile(
+        r"[\w./\\-]+\.(?:py|jsx?|tsx?|json|ya?ml|toml|ini|cfg|md|sh|ps1|bat|css|html?|sql|rs|go|java|rb|c|h|cpp)\b"
+        r"|[\w-]+/[\w./-]+",
+        re.I,
+    )
 
     # Keyword hints: if the query mentions these words, force-include the tools.
     _KEYWORD_HINTS = {
@@ -362,6 +372,18 @@ class ToolIndex:
             {"manage_bg_jobs"},
         frozenset({"note", "todo", "reminder", "remind", "checklist", "remember to"}):
             {"manage_notes"},
+        # Code / repo work. Embedding retrieval alone is unreliable for this intent:
+        # measured 2026-08-10, "read server.py and fix the failing test" retrieved
+        # bash+python but NOT read_file or edit_file, and "run the test suite and report
+        # failures" retrieved only todowrite. An agent asked to work on a repo that is not
+        # handed the file tools narrates a plan instead of doing the work, which is exactly
+        # the failure this hint exists to stop.
+        frozenset({"code", "codebase", "repo", "repository", "file", "files", "folder",
+                   "directory", "function", "class", "method", "bug", "fix", "refactor",
+                   "implement", "test", "tests", "lint", "build", "commit", "git",
+                   "diff", "patch", "script", "source", "module", "traceback"}):
+            {"read_file", "edit_file", "write_file", "apply_patch", "grep", "glob",
+             "ls", "bash", "python", "todowrite"},
         # Chat/session management. "rename" alone maps to documents below, so a
         # request like "rename the last 12 sessions/chats" needs these session
         # keywords to surface the right tools (NOT app_api — /api/sessions is
@@ -543,6 +565,12 @@ class ToolIndex:
         # prompts do not drag web schemas into the agent context.
         if self._WEB_RE.search(query):
             base.update({"web_search", "web_fetch"})
+        # A named file/path means code work — hand over the tools to actually do it. Checked
+        # after _WEB_RE so a URL is treated as a web request first (https://x.com/a/b would
+        # otherwise look like a path).
+        if not self._WEB_RE.search(query) and self._CODE_PATH_RE.search(query):
+            base.update({"read_file", "edit_file", "write_file", "apply_patch",
+                         "grep", "glob", "ls", "bash", "todowrite"})
         # Hard steering: when the query is a clear "save info about a specific
         # person" pattern (address paste + name, phone next to a name, etc.),
         # the model has been observed defaulting to manage_memory even with
