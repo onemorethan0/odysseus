@@ -154,6 +154,9 @@ KNOWN_CONTEXT_WINDOWS = {
     'gemini-2.0-flash': 1048576,
     'gemini-1.5-pro': 1048576,
     'gemini-1.5-flash': 1048576,
+    # LOCAL CARRY PATCH — llama-swap serves this as bare 'gemma4' (no hyphen), which
+    # matches NONE of the 'gemma-N' keys below, so _lookup_known() returned None for it.
+    'gemma4': 8192,
     'gemma-4': 262144,
     'gemma-3': 128000,
     'gemma-2': 8192,
@@ -181,7 +184,17 @@ KNOWN_CONTEXT_WINDOWS = {
     'llama-3': 131072,
 
     # --- Qwen ---
-    'qwen3': 131072,
+    # LOCAL CARRY PATCH — these are what E:\llama\llama-swap.yaml actually serves on this
+    # box (llama-server -c N), not the models' architectural maxima. llama-swap's
+    # /v1/models reports no context_length field at all, so _model_ctx_from_entry() gets
+    # nothing and this table is the only thing standing between us and a request built for
+    # 131072 tokens against a server that was started with -c 8192.
+    # Longest-key-wins in _lookup_known(), and the ':' variants match via the full name,
+    # so the specific entries below correctly override the generic ones.
+    # Keep in sync with llama-swap.yaml if the -c flags there change.
+    'qwen3': 32768,           # qwen3:8b and qwen3:14b are both -c 32768
+    'qwen3:32b': 8192,        # but 32b is -c 8192
+    'qwen2.5-coder': 8192,    # qwen2.5-coder:14b is -c 8192
     'qwen2.5': 131072,
     'qwen2': 32768,
     'qwq': 32768,
